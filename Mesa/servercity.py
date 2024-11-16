@@ -41,7 +41,7 @@ def agent_portrayal(agent):
     return portrayal
 
 
-coches: int = 20
+coches: int = 1
 w: int = 24
 h: int = 24
 
