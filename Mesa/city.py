@@ -2,7 +2,7 @@ from mesa import Agent, Model
 from mesa.time import RandomActivation
 from mesa.space import MultiGrid
 import random
-import numpy as np
+import math
 
 class build(Agent):
     def __init__(self, unique_id, model):
@@ -46,6 +46,7 @@ class car(Agent):
         self.start_park = start_park  # Estacionamiento inicial
         self.destination = end_park  
 
+        self.prevpos = self.pos
 
     def step(self):
         
@@ -86,13 +87,33 @@ class car(Agent):
             if isinstance(item, Semaforo):
                 semaforo = item
 
+        valid_positions = [
+            pos for pos in valid_positions 
+            if all(
+                not (isinstance(agent, park) and pos != self.destination) 
+                for agent in self.model.grid.get_cell_list_contents([pos])
+            )
+        ]
+
+        print(self.destination)
+
         if valid_positions:
             if semaforo and (semaforo.estado == "rojo"):
                 self.model.grid.move_agent(self, self.pos)
             else:
-                new_position = random.choice(valid_positions)
-                self.model.grid.move_agent(self, new_position)  # Se mueve a la nueva posición
+                # Selecciona la posición más cercana a self.destination
+                new_position = min(valid_positions, key=lambda pos: math.dist(pos, self.destination))
+
+                # Si la nueva posición es igual a prevpos, intenta otra posición
+                if new_position == self.prevpos and len(valid_positions) > 1:
+                    valid_positions.remove(new_position)
+                    new_position = min(valid_positions, key=lambda pos: math.dist(pos, self.destination))
+    
+                # Actualiza prevpos y mueve el agente
+                self.prevpos = self.pos
+                self.model.grid.move_agent(self, new_position)
         else:
+            self.prevpos = self.pos
             self.model.grid.move_agent(self, self.pos)
     
 class cityModel(Model):
@@ -108,10 +129,10 @@ class cityModel(Model):
         streets['right'] = []
         
         # Crear y colocar <- left streets
-        for x in range(1,12):
+        for x in range(1,13):
             for y in range(10,12):
                 streets['left'].append((x,y))
-        for x in range(16,22):
+        for x in range(15,22):
             for y in range(10,12):
                 streets['left'].append((x,y))
         for x in range(1,23):
@@ -120,13 +141,11 @@ class cityModel(Model):
         for x in range(1,6):
             for y in range(17,19):
                 streets['left'].append((x,y))
-        for x in range(16,18):
+        for x in range(15,22):
             for y in range(4,6):
                 streets['left'].append((x,y))
-        for x in range(20,22):
-            for y in range(4,6):
-                streets['left'].append((x,y))
-        for x in range(12,16):
+        
+        for x in range(11,16):
             y = 11
             streets['left'].append((x,y))
         for y in range(12,22):
@@ -141,7 +160,7 @@ class cityModel(Model):
             for y in range(12,23):
                 streets['up'].append((x,y))
         for x in range(14,16):
-            for y in range(2,8):
+            for y in range(2,9):
                 streets['up'].append((x,y))
         for x in range(18,20):
             for y in range(18,23):
@@ -159,21 +178,22 @@ class cityModel(Model):
         for x in range(16,22):
             y = 10
             streets['up'].append((x,y))
+
         # Crear y colocar down streets
         for x in range(12,14):
             for y in range(12,22):
                 streets['down'].append((x,y))
-        for x in range(5,8):
-            for y in range(12,22):
+        for x in range(6,8):
+            for y in range(11,22):
                 streets['down'].append((x,y))
         for x in range(0,2):
             for y in range(0,24):
                 streets['down'].append((x,y))
         for x in range(12,14):
-            for y in range(2,8):
+            for y in range(1,8):
                 streets['down'].append((x,y))
         for x in range(18,20):
-            for y in range(2,8):
+            for y in range(1,8):
                 streets['down'].append((x,y))
         
         for y in range(8,12):
@@ -187,10 +207,10 @@ class cityModel(Model):
             streets['down'].append((x,y))
 
         # Crear y colocar -> right streets
-        for x in range(2,12):
+        for x in range(2,13):
             for y in range(8,10):
                 streets['right'].append((x,y))
-        for x in range(16,23):
+        for x in range(15,23):
             for y in range(8,10):
                 streets['right'].append((x,y))
         for x in range(2,13):
@@ -217,11 +237,11 @@ class cityModel(Model):
             ((2, 15), (21, 3)), 
             ((3, 6), (20, 15)),
             ((4, 19), (20, 18)), 
-            ((4, 12), (18, 12)),
+            ((4, 12), (17, 6)),
             ((4, 3), (17, 6)), 
-            ((8, 14), (17, 21)),
+            ((8, 14), (21, 3)),
             ((9, 21), (11, 17)), 
-            ((9, 2), (10, 7))
+            ((9, 2), (11, 17))
         ]
         i = 0
         for start, end in car_pairs:
@@ -230,6 +250,10 @@ class cityModel(Model):
             self.grid.place_agent(c, start)
             i += 1
         
+        # c = car(1,self,streets,car_pairs[0][0],car_pairs[0][1])
+        # self.schedule.add(c)
+        # self.grid.place_agent(c, car_pairs[0][0])
+
         unique_id = self.num_agents
         
         # Crear y colocar agentes `build` y `park`
