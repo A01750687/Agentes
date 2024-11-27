@@ -11,23 +11,252 @@ class Build(Agent):
     def step(self):
         pass  
 
+class Grua(Agent):
+    def __init__(self, unique_id, model,streets,busStop):
+        super().__init__(unique_id, model)
+        # self.ocupado = True
+        self.ocupado = False
+        self.Upstreets = streets['up']
+        self.Downstreets = streets['down']
+        self.Lstreets = streets['left']
+        self.Rstreets = streets['right']
+        self.prevpos = self.pos
+        self.busStop = busStop
+
+        self.hospital = (23,23)
+
+        self.destination = busStop[1]
+        self.count = 1
+    
+    def ayuda(self):
+        return self.pos
+
+    def step(self):
+        if not self.ocupado:
+            if self.count + 1 > max(self.busStop.keys()):
+                self.count = 0
+
+            self.destination = self.busStop[self.count + 1]
+
+        possible = self.model.grid.get_neighborhood(self.pos, moore=False, include_center=False)
+
+        # Filtrar posiciones válidas
+        valid_positions = [
+            pos for pos in possible 
+            if all(not isinstance(agent, Grua) and not isinstance(agent, Ambulancia) and not isinstance(agent, Parada) and not isinstance(agent, Banqueta) and not isinstance(agent, Build) and not isinstance(agent, Car) for agent in self.model.grid.get_cell_list_contents([pos]))
+        ]
+
+        # Filtrar según la dirección de las calles
+        if self.pos in self.Upstreets:
+            valid_positions = [pos for pos in valid_positions if pos[1] >= self.pos[1]]
+        if self.pos in self.Downstreets:
+            valid_positions = [pos for pos in valid_positions if pos[1] <= self.pos[1]]
+        if self.pos in self.Lstreets:
+            valid_positions = [pos for pos in valid_positions if pos[0] <= self.pos[0]]
+        if self.pos in self.Rstreets:
+            valid_positions = [pos for pos in valid_positions if pos[0] >= self.pos[0]]
+
+        valid_positions = [
+            pos for pos in valid_positions 
+            if all(
+                not (isinstance(agent, Park) and pos != self.destination) 
+                for agent in self.model.grid.get_cell_list_contents([pos])
+            )
+        ]
+
+        if valid_positions:
+            new_position = min(valid_positions, key=lambda pos: math.dist(pos, self.destination))
+            if new_position == self.prevpos and len(valid_positions) > 1:
+                valid_positions.remove(new_position)
+                new_position = min(valid_positions, key=lambda pos: math.dist(pos, self.destination))
+
+            semaforo = None
+            cell_contents = self.model.grid.get_cell_list_contents([new_position])
+
+            for item in cell_contents:
+                if isinstance(item, Semaforo):
+                    semaforo = item
+
+            if semaforo and (semaforo.estado == "rojo"):
+                self.model.grid.move_agent(self, self.pos)
+                new_position = self.pos
+
+            # Verificar si estamos en la parada de destino
+            if self.destination in possible:
+                if self.ocupado:
+                    if self.destination != self.hospital:
+                        self.destination = self.hospital
+                        cell_contents = self.model.grid.get_cell_list_contents([valid_positions])
+                        for pos in cell_contents:
+                            for item in pos:
+                                if isinstance(item, Car) and item.pos == self.destination:
+                                    item.delete = True
+                    else:
+                        self.destination = self.busStop[self.count]
+                        self.ocupado = False
+                else:
+                    self.count += 1
+
+            self.prevpos = self.pos
+            self.model.grid.move_agent(self, new_position)
+        else:
+            self.prevpos = self.pos
+            self.model.grid.move_agent(self, self.pos)
+
+class Ambulancia(Agent):
+    def __init__(self, unique_id, model,streets,busStop):
+        super().__init__(unique_id, model)
+        # self.ocupado = True
+        self.ocupado = False
+        self.Upstreets = streets['up']
+        self.Downstreets = streets['down']
+        self.Lstreets = streets['left']
+        self.Rstreets = streets['right']
+        self.prevpos = self.pos
+        self.busStop = busStop
+
+        self.hospital = (23,23)
+
+        self.destination = busStop[1]
+        self.count = 1
+    
+    def ayuda(self):
+        return self.pos
+
+    def step(self):
+        if not self.ocupado:
+            if self.count + 1 > max(self.busStop.keys()):
+                self.count = 0
+
+            self.destination = self.busStop[self.count + 1]
+
+        possible = self.model.grid.get_neighborhood(self.pos, moore=False, include_center=False)
+
+        # Filtrar posiciones válidas
+        valid_positions = [
+            pos for pos in possible 
+            if all(not isinstance(agent, Grua) and not isinstance(agent, Ambulancia) and not isinstance(agent, Parada) and not isinstance(agent, Banqueta) and not isinstance(agent, Build) and not isinstance(agent, Car) for agent in self.model.grid.get_cell_list_contents([pos]))
+        ]
+
+        # Filtrar según la dirección de las calles
+        if self.pos in self.Upstreets:
+            valid_positions = [pos for pos in valid_positions if pos[1] >= self.pos[1]]
+        if self.pos in self.Downstreets:
+            valid_positions = [pos for pos in valid_positions if pos[1] <= self.pos[1]]
+        if self.pos in self.Lstreets:
+            valid_positions = [pos for pos in valid_positions if pos[0] <= self.pos[0]]
+        if self.pos in self.Rstreets:
+            valid_positions = [pos for pos in valid_positions if pos[0] >= self.pos[0]]
+
+        valid_positions = [
+            pos for pos in valid_positions 
+            if all(
+                not (isinstance(agent, Park) and pos != self.destination) 
+                for agent in self.model.grid.get_cell_list_contents([pos])
+            )
+        ]
+
+        if valid_positions:
+            new_position = min(valid_positions, key=lambda pos: math.dist(pos, self.destination))
+            if new_position == self.prevpos and len(valid_positions) > 1:
+                valid_positions.remove(new_position)
+                new_position = min(valid_positions, key=lambda pos: math.dist(pos, self.destination))
+
+            semaforo = None
+            cell_contents = self.model.grid.get_cell_list_contents([new_position])
+
+            for item in cell_contents:
+                if isinstance(item, Semaforo):
+                    semaforo = item
+
+            if semaforo and (semaforo.estado == "rojo"):
+                self.model.grid.move_agent(self, self.pos)
+                new_position = self.pos
+
+            # Verificar si estamos en la parada de destino
+            if self.destination in possible:
+                if self.ocupado:
+                    if self.destination != self.hospital:
+                        self.destination = self.hospital
+                        cell_contents = self.model.grid.get_cell_list_contents([valid_positions])
+                        for pos in cell_contents:
+                            for item in pos:
+                                if isinstance(item, Peaton) and item.pos == self.destination:
+                                    item.delete = True
+                    else:
+                        self.destination = self.busStop[self.count]
+                        self.ocupado = False
+                else:
+                    self.count += 1
+
+            self.prevpos = self.pos
+            self.model.grid.move_agent(self, new_position)
+        else:
+            self.prevpos = self.pos
+            self.model.grid.move_agent(self, self.pos)
+
 class Cruce(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
 
 class Peaton(Agent):
-    def __init__(self, unique_id, model):
+    def __init__(self, unique_id, model,ambulancias):
         super().__init__(unique_id, model)
         self.prevpos = None  # Almacena la posición anterior
         self.espera = False
         self.delete = False
+
+        self.ambulancias = ambulancias
+
+        self.choque = False
+        
+        # Tiempo para poder esperar el bus
+        self.puedeEsperar = False
+        self.count = 0
 
     def subir(self):
         self.model.grid.remove_agent(self)
         self.model.schedule.remove(self)
         self.delete = True
 
+    def pedirAyuda(self):
+        # Inicializar la variable para la ambulancia más cercana
+        ambulancia_mas_cercana = None
+        distancia_minima = float('inf')  # Comenzamos con una distancia infinita
+
+        # Recorrer todas las ambulancias y calcular la distancia
+        for ambulancia in self.ambulancias:
+            posicion_ambulancia = ambulancia.ayuda()  # Suponiendo que 'ayuda()' devuelve la posición de la ambulancia
+            
+            # Calcular la distancia entre self.pos y la posición de la ambulancia
+            distancia = self.calcular_distancia(self.pos, posicion_ambulancia)
+            
+            # Si encontramos una ambulancia más cercana, la actualizamos
+            if distancia < distancia_minima:
+                distancia_minima = distancia
+                ambulancia_mas_cercana = ambulancia
+        
+        return ambulancia_mas_cercana
+
+    def calcular_distancia(self, pos1, pos2):
+        # Calcula la distancia euclidiana entre dos puntos
+        return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
+
     def step(self):
+
+        if self.choque:
+            self.espera = True
+            print("CHOQUE")
+            ambulancia = self.pedirAyuda()
+            ambulancia.ocupado = True
+            ambulancia.destination = self.pos
+
+        if self.count > 3:
+            self.puedeEsperar = True
+
+        if not self.puedeEsperar:
+            self.count +=1
+
         if self.delete:
             self.model.grid.remove_agent(self)
             self.model.schedule.remove(self)
@@ -44,6 +273,9 @@ class Peaton(Agent):
         # Funcion con Autobús
         parada = None
         peatonesParada = 0
+        
+        hayCoches = False
+
         # Obtiene todos los contenidos de la posición actual
         cell_contents = self.model.grid.get_cell_list_contents([self.pos])
         # Busca si hay un objeto de la clase Semaforo en la posición actual
@@ -52,15 +284,31 @@ class Peaton(Agent):
                 parada = item
             if isinstance(item, Peaton):
                 peatonesParada+=1
+            if isinstance(item, Car):
+                self.choque = True
+        
+        self.espera = hayCoches
 
         # Filtrar la posición anterior
         if self.prevpos in valid_positions:
             valid_positions.remove(self.prevpos)
+
+        for item in valid_positions:
+            cell_contents = self.model.grid.get_cell_list_contents([item])
+            semaforo = None
+            for i in cell_contents:
+                if isinstance(i, Semaforo):
+                    semaforo = i
+                if isinstance(i, Car):
+                    self.espera = True
+            if semaforo and (semaforo.estado == "verde"):
+                valid_positions.remove(item)
+
+
         # Moverse a una posición válida aleatoria
         if valid_positions:
             new_position = random.choice(valid_positions)
             self.prevpos = self.pos  # Actualizar la posición anterior
-
             autobus = None
             posBus = None
 
@@ -69,15 +317,12 @@ class Peaton(Agent):
                 for item in cell_contents:
                     if isinstance(item, Bus):
                         autobus = item
-                        # item.pasajeros+=1 
                         posBus = pos
 
-
-            if parada and peatonesParada <= 2:
+            if parada and peatonesParada <= 2 and self.puedeEsperar:
                 self.espera = True
                 if autobus:
                     new_position = posBus
-                    self.espera = False
                     self.delete = True
             if self.espera:
                 new_position = self.pos
@@ -119,7 +364,7 @@ class Park(Agent):
         pass
 
 class Bus(Agent):
-    def __init__(self, unique_id, model,streets,busStop):
+    def __init__(self, unique_id, model,streets,busStop,ambulancias):
         super().__init__(unique_id, model)
         # Rutas
         self.Upstreets = streets['up']
@@ -129,6 +374,8 @@ class Bus(Agent):
         self.prevpos = self.pos
         self.busStop = busStop
 
+        self.ambulancias = ambulancias
+
         self.destination = busStop[1]
         self.count = 1
         self.timeCount = 0
@@ -136,32 +383,26 @@ class Bus(Agent):
         self.pasajeros = 0
 
     def step(self):
-
         if self.count + 1 > max(self.busStop.keys()):
             self.count = 0
 
         self.destination = self.busStop[self.count + 1]
-
         possible = self.model.grid.get_neighborhood(self.pos, moore=False, include_center=False)
 
-        # No permite posicionarse sobre build y car
+        # Filtrar posiciones válidas
         valid_positions = [
             pos for pos in possible 
-            if all(not isinstance(agent,Parada) and not isinstance(agent, Banqueta) and not isinstance(agent, Build) and not isinstance(agent,Car) for agent in self.model.grid.get_cell_list_contents([pos]))
+            if all(not isinstance(agent, Grua) and not isinstance(agent, Ambulancia) and not isinstance(agent, Parada) and not isinstance(agent, Banqueta) and not isinstance(agent, Build) and not isinstance(agent, Car) for agent in self.model.grid.get_cell_list_contents([pos]))
         ]
-        
-        # Checa su posición para saber a que dirección ir
+
+        # Filtrar según la dirección de las calles
         if self.pos in self.Upstreets:
-            # No permite ir abajo
             valid_positions = [pos for pos in valid_positions if pos[1] >= self.pos[1]]
         if self.pos in self.Downstreets:
-            # No permite ir arriba
             valid_positions = [pos for pos in valid_positions if pos[1] <= self.pos[1]]
         if self.pos in self.Lstreets:
-            # No permite ir a la derecha
             valid_positions = [pos for pos in valid_positions if pos[0] <= self.pos[0]]
         if self.pos in self.Rstreets:
-            # No permite ir a la izquierda
             valid_positions = [pos for pos in valid_positions if pos[0] >= self.pos[0]]
 
         valid_positions = [
@@ -173,22 +414,15 @@ class Bus(Agent):
         ]
 
         if valid_positions:
-
-            # Selecciona la posición más cercana a self.destination
             new_position = min(valid_positions, key=lambda pos: math.dist(pos, self.destination))
-            # Si la nueva posición es igual a prevpos, intenta otra posición
             if new_position == self.prevpos and len(valid_positions) > 1:
                 valid_positions.remove(new_position)
                 new_position = min(valid_positions, key=lambda pos: math.dist(pos, self.destination))
 
             semaforo = None
-
-            # Obtiene todos los contenidos de la posición actual
             cell_contents = self.model.grid.get_cell_list_contents([new_position])
+            selfpos_contents = self.model.grid.get_cell_list_contents([self.pos])
 
-            selfposPeaton = self.model.grid.get_cell_list_contents([self.pos])
-
-            # Busca si hay un objeto de la clase Semaforo en la posición actual
             for item in cell_contents:
                 if isinstance(item, Semaforo):
                     semaforo = item
@@ -196,25 +430,26 @@ class Bus(Agent):
             if semaforo and (semaforo.estado == "rojo"):
                 self.model.grid.move_agent(self, self.pos)
                 new_position = self.pos
-            
-            print(self.pasajeros)
-            if self.destination in possible and self.timeCount<=3:
+
+            # Verificar si estamos en la parada de destino
+            if self.destination in possible and self.timeCount <= 3:
                 self.model.grid.move_agent(self, self.pos)
-                for item in selfposPeaton:
+                for item in selfpos_contents:
                     if isinstance(item, Peaton):
-                        self.pasajeros +=1
-                        item.delete = True
+                        self.pasajeros += 1
+                        item.delete = True  # Marca al peatón para eliminarlo
                 new_position = self.pos
-                self.timeCount+=1
+                self.timeCount += 1
+                print(self.pasajeros)
                 if self.timeCount == 3:
                     self.timeCount = 0
-                    self.count+=1
-                    pasajeros = self.pasajeros
-                    for x in range(pasajeros):
-                        p = Peaton(1, self.model)
+                    self.count += 1
+                    for _ in range(random.randrange(0, 3)):
+                        p = Peaton(self.model.agentsCount, self.model,self.ambulancias)
                         self.model.schedule.add(p)
                         self.model.grid.place_agent(p, self.busStop[self.count])
-            # Actualiza prevpos y mueve el agente
+                        self.model.agentsCount+=1
+
             self.prevpos = self.pos
             self.model.grid.move_agent(self, new_position)
         else:
@@ -222,13 +457,18 @@ class Bus(Agent):
             self.model.grid.move_agent(self, self.pos)
 
 class Car(Agent):
-    def __init__(self, unique_id, model,streets,start_park,end_park,parks):
+    def __init__(self, unique_id, model,streets,start_park,end_park,parks,gruas):
         super().__init__(unique_id, model)
         # Rutas
         self.Upstreets = streets['up']
         self.Downstreets = streets['down']
         self.Lstreets = streets['left']
         self.Rstreets = streets['right']
+
+        self.delete = False
+        self.choque = False
+        self.espera = False
+
         # Inicio y destino
         self.start_park = start_park  # Estacionamiento inicial
         self.destination = end_park  
@@ -236,8 +476,45 @@ class Car(Agent):
         self.prevpos = self.pos
         self.parks = parks
 
+        self.gruas = gruas
+
+    def pedirAyuda(self):
+        # Inicializar la variable para la ambulancia más cercana
+        grua_mas_cercana = None
+        distancia_minima = float('inf')  # Comenzamos con una distancia infinita
+
+        # Recorrer todas las ambulancias y calcular la distancia
+        for grua in self.gruas:
+            posicion_grua = grua.ayuda()  # Suponiendo que 'ayuda()' devuelve la posición de la ambulancia
+            
+            # Calcular la distancia entre self.pos y la posición de la ambulancia
+            distancia = self.calcular_distancia(self.pos, posicion_grua)
+            
+            # Si encontramos una ambulancia más cercana, la actualizamos
+            if distancia < distancia_minima:
+                distancia_minima = distancia
+                grua_mas_cercana = grua
+        
+        return grua_mas_cercana
+
+    def calcular_distancia(self, pos1, pos2):
+        # Calcula la distancia euclidiana entre dos puntos
+        return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
+
     def step(self):
         
+        if self.choque:
+            self.espera = True
+            print("CHOQUE")
+            grua = self.pedirAyuda()
+            grua.ocupado = True
+            grua.destination = self.pos
+
+        if self.delete:
+            self.model.grid.remove_agent(self)
+            self.model.schedule.remove(self)
+            return
+
         if self.pos == self.destination:
             self.model.grid.remove_agent(self)
             self.model.schedule.remove(self)
@@ -248,7 +525,7 @@ class Car(Agent):
         # No permite posicionarse sobre build y car
         valid_positions = [
             pos for pos in possible 
-            if all(not isinstance(agent,Bus)and  not isinstance(agent,Parada) and not isinstance(agent, Banqueta) and not isinstance(agent, Build) and not isinstance(agent,Car) for agent in self.model.grid.get_cell_list_contents([pos]))
+            if all(not isinstance(agent, Peaton) and not isinstance(agent, Grua) and not isinstance(agent, Ambulancia) and not isinstance(agent, Parada) and not isinstance(agent, Banqueta) and not isinstance(agent, Build) and not isinstance(agent, Car) for agent in self.model.grid.get_cell_list_contents([pos]))
         ]
         
         # Checa su posición para saber a que dirección ir
@@ -273,7 +550,15 @@ class Car(Agent):
             )
         ]
 
-        if valid_positions:
+        # Obtiene todos los contenidos de la posición actual
+        cell_contents = self.model.grid.get_cell_list_contents([self.pos])
+        # Busca si hay un objeto de la clase Semaforo en la posición actual
+        for item in cell_contents:
+            if isinstance(item, Peaton):
+                self.choque = True
+                self.espera = True
+
+        if valid_positions and not self.espera:
             # Selecciona la posición más cercana a self.destination
             new_position = min(valid_positions, key=lambda pos: math.dist(pos, self.destination))
             # Si la nueva posición es igual a prevpos, intenta otra posición
@@ -304,6 +589,8 @@ class Car(Agent):
     
 class cityModel(Model):
     def __init__(self, N, w, h):
+
+        self.agentsCount = 0
 
         def building(self,pos,build_cells,parks,rampas,busStop,i):
             if pos in parks.values():
@@ -431,16 +718,14 @@ class cityModel(Model):
                 streets["left"].append((x,y))
 
         # DIRECCIONES GLORIETA
-        for y in range(12,17):
+        for y in range(12,16):
             streets["down"].append((16,y))
-        for y in range(12,17):
+        for y in range(13,16):
             streets["up"].append((20,y))
         for x in range(16,21):
             streets["left"].append((x,16))
         for x in range(16,21):
             streets["right"].append((x,12))
-
-        unique_id = self.num_agents
 
         # Dictado de estacionamientos
         parks = {
@@ -482,16 +767,102 @@ class cityModel(Model):
             (parks[7],parks[11]),
             (parks[10],parks[16]),
             (parks[9],parks[11]),
+
+            (parks[1],parks[17]),
+            (parks[2],parks[16]),
+            (parks[3],parks[15]),
+            (parks[14],parks[4]),
+            (parks[5],parks[13]),
+            (parks[12],parks[16]),
+            (parks[7],parks[11]),
+            (parks[10],parks[16]),
+            (parks[9],parks[11]),
+            (parks[1],parks[17]),
+            (parks[2],parks[16]),
+            (parks[3],parks[15]),
+            (parks[14],parks[4]),
+            (parks[5],parks[13]),
+            (parks[12],parks[16]),
+            (parks[7],parks[11]),
+            (parks[10],parks[16]),
+            (parks[9],parks[11]),
+            (parks[1],parks[17]),
+            (parks[2],parks[16]),
+            (parks[3],parks[15]),
+            (parks[14],parks[4]),
+            (parks[5],parks[13]),
+            (parks[12],parks[16]),
+            (parks[7],parks[11]),
+            (parks[10],parks[16]),
+            (parks[9],parks[11]),
+             (parks[14],parks[4]),
+            (parks[5],parks[13]),
+            (parks[12],parks[16]),
+            (parks[7],parks[11]),
+            (parks[10],parks[16]),
+            (parks[9],parks[11]),
+            (parks[1],parks[17]),
+            (parks[2],parks[16]),
+            (parks[3],parks[15]),
+            (parks[14],parks[4]),
+            (parks[5],parks[13]),
+            (parks[12],parks[16]),
+            (parks[7],parks[11]),
+            (parks[10],parks[16]),
+            (parks[9],parks[11]),
+             (parks[14],parks[4]),
+            (parks[5],parks[13]),
+            (parks[12],parks[16]),
+            (parks[7],parks[11]),
+            (parks[10],parks[16]),
+            (parks[9],parks[11]),
+            (parks[1],parks[17]),
+            (parks[2],parks[16]),
+            (parks[3],parks[15]),
+            (parks[14],parks[4]),
+            (parks[5],parks[13]),
+            (parks[12],parks[16]),
+            (parks[7],parks[11]),
+            (parks[10],parks[16]),
+            (parks[9],parks[11]),
         ]
-        
-        i = 0
+        print(len(car_pairs))
+
+        # Posicionamiento de Grua
+        grua_Start = [
+            (1,1)
+        ]
+
+        gruas = []
+
+        for x in grua_Start:
+            grua = Grua(self.agentsCount,self,streets,busStop)
+            gruas.append(grua)
+            self.schedule.add(grua)
+            self.grid.place_agent(grua, x)
+            self.agentsCount += 1
+
 
         for start, end in car_pairs:
-            c = Car(i, self, streets,start, end,parks)
+            c = Car(self.agentsCount, self, streets,start, end,parks, gruas)
             self.schedule.add(c)
             self.grid.place_agent(c, start)
-            i += 1
-        
+            self.agentsCount += 1
+
+        # Posicionamiento de Ambulancia
+        ambulancia_Start = [
+            (1,12)
+        ]
+
+        ambulancias = []
+
+        for x in ambulancia_Start:
+            ambulancia = Ambulancia(self.agentsCount,self,streets,busStop)
+            ambulancias.append(ambulancia)
+            self.schedule.add(ambulancia)
+            self.grid.place_agent(ambulancia, x)
+            self.agentsCount += 1
+
         # Posicionamiento de BUS
 
         bus_Start = [
@@ -499,10 +870,10 @@ class cityModel(Model):
         ]
 
         for x in bus_Start:
-            bus = Bus(i,self,streets,busStop)
+            bus = Bus(self.agentsCount,self,streets,busStop,ambulancias)
             self.schedule.add(bus)
             self.grid.place_agent(bus, x)
-            i += 1
+            self.agentsCount += 1
 
         # agregar un cruce
         c = Cruce(1, self)
@@ -533,30 +904,38 @@ class cityModel(Model):
         self.grid.place_agent(c, (30, 23))
 
         # agregar un peaton
-        p = Peaton(1, self)
+        p = Peaton(self.agentsCount, self, ambulancias)
         self.schedule.add(p)
+        self.agentsCount+=1
         self.grid.place_agent(p, (2, 2))
-        p = Peaton(3, self)
+        p = Peaton(self.agentsCount, self, ambulancias)
         self.schedule.add(p)
         self.grid.place_agent(p,(15,4))
-        p = Peaton(3, self)
+        self.agentsCount+=1
+        p = Peaton(self.agentsCount, self, ambulancias)
         self.schedule.add(p)
         self.grid.place_agent(p,(2,30))
-        p = Peaton(3, self)
+        self.agentsCount+=1
+        p = Peaton(self.agentsCount, self, ambulancias)
         self.schedule.add(p)
         self.grid.place_agent(p,(15,17))
-        p = Peaton(3, self)
+        self.agentsCount+=1
+        p = Peaton(self.agentsCount, self, ambulancias)
         self.schedule.add(p)
         self.grid.place_agent(p,(21,30))
-        p = Peaton(3, self)
+        self.agentsCount+=1
+        p = Peaton(self.agentsCount, self, ambulancias)
         self.schedule.add(p)
         self.grid.place_agent(p,(25,17))
-        p = Peaton(3, self)
+        self.agentsCount+=1
+        p = Peaton(self.agentsCount, self, ambulancias)
         self.schedule.add(p)
         self.grid.place_agent(p,(21,11))
-        p = Peaton(3, self)
+        self.agentsCount+=1
+        p = Peaton(self.agentsCount, self, ambulancias)
         self.schedule.add(p)
         self.grid.place_agent(p,(27,8))
+        self.agentsCount+=1
 
         # Posicionamiento semaforo
         semaforo_positions = [
@@ -566,11 +945,14 @@ class cityModel(Model):
                 ((25, 8), "rojo"), ((26, 8), "rojo"), ((27, 7), "verde"), ((27, 6), "verde"),
                 ((15, 7), "verde"), ((15, 6), "verde"), ((16,8), "rojo"), ((17,8), "rojo")
             ]
+
+        semaforo_ID = 200
+
         for pos, estado_inicial in semaforo_positions:
-                semaforo = Semaforo(unique_id, self, estado_inicial)
+                semaforo = Semaforo(semaforo_ID, self, estado_inicial)
                 self.schedule.add(semaforo)
                 self.grid.place_agent(semaforo, pos)
-                unique_id += 1
+                semaforo_ID += 1
 
         # Lista de áreas de Builds
         build_cells = []
